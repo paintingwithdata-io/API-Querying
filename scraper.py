@@ -4,8 +4,15 @@ from pandas import json_normalize
 
 
 # Sets url variable from API to pull album data and gets json as response
-def get_data(url):
-    response = requests.get(url)
+def get_album_deezer(url):
+    # Create a response json object from the API endpoint
+    response = requests.get(url).json()
+
+    # JSON Data metadata from the API
+    # Headers is a dictionary
+    #   print(response.headers)
+    # Get the content-type from the dictionary.
+    #   print(response.headers["content-type"])
 
     # Create dictionaries to select key columns and rename later
     album_cols = {'cols': ['id', 'title', 'upc', 'genre_id', 'label', 'duration',
@@ -17,12 +24,11 @@ def get_data(url):
     track_rename = {'id': 'track_id', 'title': 'track_title', 'duration': 'track_duration',
                     'rank': 'track_rank'}
 
-    # Create a json object from the response and then a dataframe after normalizing json data
-    data = response.json()
-    json_df = pd.DataFrame.from_dict(json_normalize(data), orient='columns')
+    # Creates a dataframe from the normalized json object
+    json_df = json_normalize(response)
 
     # Create a dataframe with the album information, reduced to the key cols from album_cols
-    # then rename the id column for clarity
+    # then rename columns for clarity
     album_df = json_df[album_cols['cols']]
     album_df = album_df.rename(columns=album_rename)
     album_df['m_key'] = 1
@@ -46,3 +52,24 @@ def get_data(url):
         i.drop(i[['m_key']], axis=1, inplace=True)
 
     return df_list
+
+
+def get_fans_deezer(url, fans_df):
+    # Create a response json object from the API endpoint
+    # and a dataframe from the normalized json object
+    response = requests.get(url).json()
+    df = json_normalize(response)
+
+    # Returns a list of the user dataframe and the url for the next fan batch
+    while 'next' in response:
+        # Create a dataframe with the fan information by turning
+        # the df.data series into a list, and then into a dataframe
+        # with the id column only
+        fans_list = list(df['data'][0])
+        fans_df = pd.DataFrame(fans_list)[['id']]
+
+        print(response['next'])
+        fans_df = fans_df.append(get_fans_deezer(response['next'], fans_df), ignore_index=True)
+        break
+
+    return fans_df
